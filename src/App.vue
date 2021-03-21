@@ -1,7 +1,32 @@
 <template>
   <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
+    <div
+      v-if="lazyloading"
+      class="fixed w-100 h-100 opacity-80 bg-purple-800 inset-0 z-50 flex items-center justify-center"
+    >
+      <svg
+        class="animate-spin -ml-1 mr-3 h-12 w-12 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
+
     <div class="container">
-      <div class="w-full my-4"></div>
       <section>
         <div class="flex">
           <div class="max-w-xs">
@@ -19,6 +44,31 @@
                 placeholder="Например DOGE"
               />
             </div>
+            <div
+              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+            >
+              <span
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+              >
+                BTC
+              </span>
+              <span
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+              >
+                DOGE
+              </span>
+              <span
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+              >
+                BCH
+              </span>
+              <span
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+              >
+                CHD
+              </span>
+            </div>
+            <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
         </div>
         <button
@@ -51,7 +101,7 @@
             :key="t.name"
             @click="select(t)"
             :class="{
-              'border-4': sel === t
+              'border-4': sel === t,
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -140,11 +190,44 @@ export default {
       ticker: "",
       tickers: [],
       sel: null,
-      graph: []
+      graph: [],
+      lazyloading: ""
     };
   },
 
+  created() {
+    const tickersData = localStorage.getItem("crypto-list");
+    if(tickersData){
+      this.tickers = JSON.parse(tickersData);
+      this.tickers.forEach(ticker=>{
+        this.subscribeToUpdates(ticker.name);
+      })
+    }
+  },
+
+  mounted() {
+    document.addEventListener("lazyloaded", () => {
+      this.lazyloading = false;
+    });
+  },
+
   methods: {
+    subscribeToUpdates(tickerName) {
+      setInterval(async () => {
+        const f = await fetch(
+          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=7b50d7f9bab7c6212f7719c63ad3a709c842764cdf221c9b9786a109f846c1be`
+        );
+        const data = await f.json();
+
+        this.tickers.find(t => t.name === tickerName).price =
+          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+
+        if (this.sel?.name === tickerName) {
+          this.graph.push(data.USD);
+        }
+      }, 3000);
+    },
+
     add() {
       const currentTicker = {
         name: this.ticker,
@@ -152,19 +235,11 @@ export default {
       };
 
       this.tickers.push(currentTicker);
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=7b50d7f9bab7c6212f7719c63ad3a709c842764cdf221c9b9786a109f846c1be`
-        );
-        const data = await f.json();
 
-        this.tickers.find(t => t.name === currentTicker.name).price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+      localStorage.setItem("crypto-list", JSON.stringify(this.tickers));
 
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD);
-        }
-      }, 3000);
+      this.subscribeToUpdates(currentTicker.name);
+
       this.ticker = "";
     },
 
@@ -187,5 +262,3 @@ export default {
   }
 };
 </script>
-
-
